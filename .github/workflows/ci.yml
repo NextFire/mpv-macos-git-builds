@@ -1,6 +1,9 @@
 name: CI
 
 on:
+  push:
+    branches:
+      - "!main"
   workflow_dispatch:
   schedule:
     - cron: "0 12 * * *"
@@ -20,6 +23,7 @@ jobs:
         run: echo "::set-output name=version::$(sh version.sh)"
 
       - name: Get last build version
+        if: github.head_ref == 'refs/heads/main'
         id: last_build
         uses: oprypin/find-latest-tag@v1
         with:
@@ -28,13 +32,13 @@ jobs:
         continue-on-error: true
 
       - name: Cancel run if last build is up to date
-        if: endsWith(steps.last_build.outputs.tag, steps.version.outputs.version)
+        if: (github.head_ref == 'refs/heads/main') && endsWith(steps.last_build.outputs.tag, steps.version.outputs.version)
         run: exit 1
 
       - name: Install dependencies
         run: |
           brew update && brew upgrade
-          brew install ffmpeg libass lua@5.1
+          brew install ffmpeg lua@5.1
 
       - name: Build mpv
         run: |
@@ -47,24 +51,34 @@ jobs:
       - name: Bundle mpv
         run: TOOLS/osxbundle.py build/mpv
 
-      - name: Get mpv-player/mpv last commit SHA
-        id: sha
-        run: echo "::set-output name=sha::$(git log -n1 --format="%h")"
-
-      - name: zip bundle
-        run: zip -r mpv-${{ steps.version.outputs.version }}.zip mpv.app
+      - name: tar bundle
+        run: tar cvf mpv-${{ steps.version.outputs.version }}.tar mpv.app
         working-directory: build
 
+      - name: Upload artifact
+        if: github.head_ref != 'refs/heads/main'
+        uses: actions/upload-artifact@v2
+        with:
+          name: mpv-${{ steps.version.outputs.version }}
+          path: build/mpv-${{ steps.version.outputs.version }}.tar
+
       - name: Get current timestamp
+        if: github.head_ref == 'refs/heads/main'
         id: timestamp
         run: echo "::set-output name=date::$(date +%Y-%m-%d)"
 
+      - name: Get mpv-player/mpv last commit SHA
+        if: github.head_ref == 'refs/heads/main'
+        id: sha
+        run: echo "::set-output name=sha::$(git log -n1 --format="%h")"
+
       - name: Create Release
+        if: github.head_ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v1
         with:
           tag_name: mpv-${{ steps.version.outputs.version }}
           name: ${{ steps.timestamp.outputs.date }}
           body: Bump to mpv-player/mpv@${{ steps.sha.outputs.sha }}
-          files: build/mpv-${{ steps.version.outputs.version }}.zip
+          files: build/mpv-${{ steps.version.outputs.version }}.tar
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
