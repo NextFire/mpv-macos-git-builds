@@ -24,7 +24,7 @@ jobs:
           commit_sha=$(git log -n1 --format="%h")
           git_version=$(./version.sh)
           echo $commit_sha > COMMIT_SHA
-          echo $git_version > GIT_VERSION
+          echo $git_version > VERSION
           echo "::set-output name=commit_sha::$commit_sha"
           echo "::set-output name=git_version::$git_version"
 
@@ -70,7 +70,7 @@ jobs:
           path: |
             build/mpv-${{ steps.versions.outputs.git_version }}.tar
             COMMIT_SHA
-            GIT_VERSION
+            VERSION
 
   release:
     needs: build
@@ -86,7 +86,7 @@ jobs:
         id: versions
         run: |
           echo "::set-output name=commit_sha::$(cat COMMIT_SHA)"
-          echo "::set-output name=git_version::$(cat GIT_VERSION)"
+          echo "::set-output name=git_version::$(cat VERSION)"
           echo "::set-output name=date::$(date +%Y-%m-%d)"
 
       - name: Create Release
@@ -116,7 +116,7 @@ jobs:
 
       - name: Update cask
         run: |
-          git_version=$(cat GIT_VERSION)
+          git_version=$(cat VERSION)
           build_sha=$(shasum -a 256 build/mpv-$git_version.tar | cut -d ' ' -f 1)
           sed -i "s/version .*/version \"$git_version\"/; s/sha256 .*/sha256 \"$build_sha\"/" Casks/mpv-git.rb
           git config user.name 'github-actions[bot]'
