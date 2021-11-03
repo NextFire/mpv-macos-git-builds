@@ -13,17 +13,22 @@ jobs:
     runs-on: macos-latest
     steps:
       - name: Checkout mpv-player/mpv
-        uses: actions/checkout@v2.3.4
+        uses: actions/checkout@v2
         with:
           repository: "mpv-player/mpv"
           fetch-depth: 0
 
-      - name: Get mpv-player/mpv last version
-        id: version
-        run: echo "::set-output name=version::$(sh version.sh)"
+      - name: Get versions
+        id: versions
+        run: |
+          commit_sha=$(git log -n1 --format="%h")
+          git_version=$(./version.sh)
+          echo $commit_sha > COMMIT_SHA
+          echo $git_version > GIT_VERSION
+          echo "::set-output name=commit_sha::$commit_sha"
+          echo "::set-output name=git_version::$git_version"
 
       - name: Get last build version
-        if: github.head_ref == 'refs/heads/main'
         id: last_build
         uses: oprypin/find-latest-tag@v1
         with:
@@ -32,7 +37,7 @@ jobs:
         continue-on-error: true
 
       - name: Cancel run if last build is up to date
-        if: (github.head_ref == 'refs/heads/main') && endsWith(steps.last_build.outputs.tag, steps.version.outputs.version)
+        if: (github.ref == 'refs/heads/main') && endsWith(steps.last_build.outputs.tag, steps.versions.outputs.git_version)
         run: exit 1
 
       - name: Install dependencies
@@ -52,33 +57,67 @@ jobs:
         run: TOOLS/osxbundle.py build/mpv
 
       - name: tar bundle
-        run: tar cvf mpv-${{ steps.version.outputs.version }}.tar mpv.app
+        run: tar cvf mpv-${{ steps.versions.outputs.git_version }}.tar mpv.app
         working-directory: build
 
       - name: Upload artifact
-        if: github.head_ref != 'refs/heads/main'
         uses: actions/upload-artifact@v2
         with:
-          name: mpv-${{ steps.version.outputs.version }}
-          path: build/mpv-${{ steps.version.outputs.version }}.tar
+          name: build
+          path: |
+            build/mpv-${{ steps.versions.outputs.git_version }}.tar
+            COMMIT_SHA
+            GIT_VERSION
 
-      - name: Get current timestamp
-        if: github.head_ref == 'refs/heads/main'
-        id: timestamp
-        run: echo "::set-output name=date::$(date +%Y-%m-%d)"
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v2
+        with:
+          name: build
 
-      - name: Get mpv-player/mpv last commit SHA
-        if: github.head_ref == 'refs/heads/main'
-        id: sha
-        run: echo "::set-output name=sha::$(git log -n1 --format="%h")"
+      - name: Get versions
+        id: versions
+        run: |
+          echo "::set-output name=commit_sha::$(cat COMMIT_SHA)"
+          echo "::set-output name=git_version::$(cat GIT_VERSION)"
+          echo "::set-output name=date::$(date +%Y-%m-%d)"
 
       - name: Create Release
-        if: github.head_ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: mpv-${{ steps.version.outputs.version }}
-          name: ${{ steps.timestamp.outputs.date }}
-          body: Bump to mpv-player/mpv@${{ steps.sha.outputs.sha }}
-          files: build/mpv-${{ steps.version.outputs.version }}.tar
+          tag_name: mpv-${{ steps.versions.outputs.git_version }}
+          name: ${{ steps.versions.outputs.date }}
+          body: Bump to mpv-player/mpv@${{ steps.versions.outputs.commit_sha }}
+          files: build/mpv-${{ steps.versions.outputs.git_version }}.tar
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  update-tap:
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout NextFire/homebrew-tap
+        uses: actions/checkout@v2
+        with:
+          repository: "NextFire/homebrew-tap"
+          token: ${{ secrets.TOKEN }}
+
+      - name: Download artifact
+        uses: actions/download-artifact@v2
+        with:
+          name: build
+
+      - name: Update cask
+        run: |
+          git_version=$(cat GIT_VERSION)
+          build_sha=$(shasum -a 256 build/mpv-$git_version.tar | cut -d ' ' -f 1)
+          sed -i "s/version .*/version \"$git_version\"/; s/sha256 .*/sha256 \"$build_sha\"/" Casks/mpv-git.rb
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add Casks/mpv-git.rb
+          git commit -m "[CI] Update mpv to $git_version"
+          git push
