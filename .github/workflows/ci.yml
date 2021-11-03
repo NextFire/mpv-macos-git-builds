@@ -42,8 +42,9 @@ jobs:
 
       - name: Install dependencies
         run: |
-          brew update && brew upgrade
-          brew install ffmpeg lua@5.1
+          brew update
+          brew install libass ffmpeg --HEAD
+          brew install lua@5.1
           install_name_tool -change "@loader_path/libbrotlicommon.1.dylib" "/usr/local/opt/brotli/lib/libbrotlicommon.1.dylib" /usr/local/opt/brotli/lib/libbrotlidec.1.dylib
           install_name_tool -change "@loader_path/libbrotlicommon.1.dylib" "/usr/local/opt/brotli/lib/libbrotlicommon.1.dylib" /usr/local/opt/brotli/lib/libbrotlienc.1.dylib
 
