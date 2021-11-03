@@ -5,3 +5,9 @@
 This repository provides unofficial git desktop builds of [mpv-player/mpv](https://github.com/mpv-player/mpv) for macOS.
 
 Compiled with latest stable version of `ffmpeg`.
+
+## Homebrew tap
+
+You can `brew tap nextfire/tap` then install the git builds with `brew install --cask mpv-git`.
+
+The tap is automatically updated at each release so you can use `brew upgrade` to update mpv.
