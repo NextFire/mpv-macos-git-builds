@@ -13,7 +13,7 @@ jobs:
     runs-on: macos-latest
     steps:
       - name: Checkout mpv-player/mpv
-        uses: actions/checkout@v2.3.5
+        uses: actions/checkout@v2.4.0
         with:
           repository: "mpv-player/mpv"
           fetch-depth: 0
