@@ -89,13 +89,10 @@ jobs:
       - name: Get versions
         id: versions
         run: |
-          body="Bump to mpv-player/mpv@$(cat COMMIT_SHA)
-
-          \`\`\`
-          $(cat MPV_VERSION)
-          \`\`\`
-          "
-          echo "::set-output name=body::$body"
+          echo Bump to mpv-player/mpv@$(cat COMMIT_SHA) > body.md
+          echo \`\`\` >> body.md
+          cat MPV_VERSION >> body.md
+          echo \`\`\` >> body.md
           echo "::set-output name=git_version::$(cat VERSION)"
           echo "::set-output name=date::$(date +%Y-%m-%d)"
 
@@ -104,7 +101,7 @@ jobs:
         with:
           tag_name: mpv-${{ steps.versions.outputs.git_version }}
           name: ${{ steps.versions.outputs.date }}
-          body: ${{ steps.versions.outputs.body }}
+          body_path: body.md
           files: build/mpv-${{ steps.versions.outputs.git_version }}.tar
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
