@@ -56,6 +56,9 @@ jobs:
         env:
           CFLAGS: -mmacosx-version-min=10.8
 
+      - name: --version output
+        run: build/mpv --version > MPV_VERSION
+
       - name: Bundle mpv
         run: TOOLS/osxbundle.py build/mpv
 
@@ -71,6 +74,7 @@ jobs:
             build/mpv-${{ steps.versions.outputs.git_version }}.tar
             COMMIT_SHA
             VERSION
+            MPV_VERSION
 
   release:
     needs: build
@@ -85,7 +89,13 @@ jobs:
       - name: Get versions
         id: versions
         run: |
-          echo "::set-output name=commit_sha::$(cat COMMIT_SHA)"
+          body="Bump to mpv-player/mpv@$(cat COMMIT_SHA)
+
+          \`\`\`
+          $(cat MPV_VERSION)
+          \`\`\`
+          "
+          echo "::set-output name=body::$body"
           echo "::set-output name=git_version::$(cat VERSION)"
           echo "::set-output name=date::$(date +%Y-%m-%d)"
 
@@ -94,7 +104,7 @@ jobs:
         with:
           tag_name: mpv-${{ steps.versions.outputs.git_version }}
           name: ${{ steps.versions.outputs.date }}
-          body: Bump to mpv-player/mpv@${{ steps.versions.outputs.commit_sha }}
+          body: ${{ steps.versions.outputs.body }}
           files: build/mpv-${{ steps.versions.outputs.git_version }}.tar
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
