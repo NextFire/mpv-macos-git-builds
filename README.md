@@ -4,7 +4,7 @@
 
 This repository provides unofficial git desktop builds of [mpv-player/mpv](https://github.com/mpv-player/mpv) for macOS.
 
-Compiled with git versions of `ffmpeg` and `libass`.
+Compiled with stable version of `ffmpeg`.
 
 ## Homebrew tap
 
