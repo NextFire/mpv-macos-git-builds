@@ -4,7 +4,12 @@
 
 This repository provides unofficial git desktop builds of [mpv-player/mpv](https://github.com/mpv-player/mpv) for macOS.
 
-Compiled with stable version of `ffmpeg`.
+Build dependencies:
+
+- `ffmpeg` (git)
+- `libplacebo` (git) for gpu-next
+- `luajit` (stable) for Lua scripts
+- `mujs` (stable) for JS scripts
 
 ## Homebrew tap
 
