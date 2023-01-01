@@ -13,7 +13,7 @@ jobs:
     runs-on: macos-latest
     steps:
       - name: Checkout mpv-player/mpv
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           repository: "mpv-player/mpv"
           fetch-depth: 0
@@ -59,7 +59,7 @@ jobs:
         run: tar cvf mpv-${{ steps.versions.outputs.MPV_VERSION_SH }}.tar mpv.app
         working-directory: build
       - name: Upload artifact
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: build
           path: build/mpv-${{ steps.versions.outputs.MPV_VERSION_SH }}.tar
@@ -74,7 +74,7 @@ jobs:
     if: github.ref == 'refs/heads/main'
     steps:
       - name: Download artifact
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3
         with:
           name: build
       - name: Release body and date
@@ -95,7 +95,7 @@ jobs:
           tag_name: mpv-${{ needs.build.outputs.MPV_VERSION_SH }}
           name: ${{ steps.date.outputs.DATE }}
           body_path: body.md
-          files: build/mpv-${{ needs.build.outputs.MPV_VERSION_SH }}.tar
+          files: mpv-${{ needs.build.outputs.MPV_VERSION_SH }}.tar
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -104,19 +104,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout NextFire/homebrew-tap
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           repository: "NextFire/homebrew-tap"
           token: ${{ secrets.TOKEN }}
       - name: Download artifact
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3
         with:
           name: build
       - name: Update cask
         env:
           MPV_VERSION_SH: ${{ needs.build.outputs.MPV_VERSION_SH }}
         run: |
-          BUILD_SHA=$(shasum -a 256 build/mpv-$MPV_VERSION_SH.tar | cut -d ' ' -f 1)
+          BUILD_SHA=$(shasum -a 256 mpv-$MPV_VERSION_SH.tar | cut -d ' ' -f 1)
           sed -i "s/version .*/version \"$MPV_VERSION_SH\"/; s/sha256 .*/sha256 \"$BUILD_SHA\"/" Casks/mpv-git.rb
           git config user.name 'github-actions[bot]'
           git config user.email 'github-actions[bot]@users.noreply.github.com'
