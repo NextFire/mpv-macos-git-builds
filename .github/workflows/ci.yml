@@ -17,17 +17,11 @@ jobs:
         with:
           repository: "mpv-player/mpv"
           fetch-depth: 0
-
       - name: Get versions
         id: versions
         run: |
-          commit_sha=$(git log -n1 --format="%h")
-          git_version=$(./version.sh)
-          echo $commit_sha > COMMIT_SHA
-          echo $git_version > VERSION
-          echo "::set-output name=commit_sha::$commit_sha"
-          echo "::set-output name=git_version::$git_version"
-
+          echo "COMMIT_SHA=$(git log -n1 --format='%h')" >> $GITHUB_OUTPUT
+          echo "MPV_VERSION_SH=$(./version.sh)" >> $GITHUB_OUTPUT
       - name: Get last build version
         id: last_build
         uses: oprypin/find-latest-tag@v1
@@ -35,47 +29,44 @@ jobs:
           repository: ${{ github.repository }}
           releases-only: true
         continue-on-error: true
-
       - name: Cancel run if last build is up to date
-        if: (github.ref == 'refs/heads/main') && endsWith(steps.last_build.outputs.tag, steps.versions.outputs.git_version)
-        run: exit 1
-
+        if: (github.ref == 'refs/heads/main') && endsWith(steps.last_build.outputs.tag, steps.versions.outputs.MPV_VERSION_SH)
+        uses: andymckay/cancel-action@0.3
       - name: Install dependencies
         run: |
           brew update
-          brew install meson luajit mujs
-          brew install --head ffmpeg libplacebo
-          # fix bundle
-          install_name_tool -change "@loader_path/libbrotlicommon.1.dylib" "/usr/local/opt/brotli/lib/libbrotlicommon.1.dylib" /usr/local/opt/brotli/lib/libbrotlidec.1.dylib
-          install_name_tool -change "@loader_path/libbrotlicommon.1.dylib" "/usr/local/opt/brotli/lib/libbrotlicommon.1.dylib" /usr/local/opt/brotli/lib/libbrotlienc.1.dylib
-
+          brew install --overwrite python@3.10 python@3.11
+          brew install --overwrite meson luajit mujs
+          brew install --overwrite --head ffmpeg libplacebo
       - name: Build mpv
         run: |
           meson setup build
           meson compile -C build
           meson install -C build
-        env:
-          CFLAGS: -mmacosx-version-min=10.8
-
       - name: --version output
-        run: build/mpv --version > MPV_VERSION
-
+        id: mpv_version
+        run: |
+          echo 'MPV_VERSION<<EOF' >> $GITHUB_OUTPUT
+          ./build/mpv --version >> $GITHUB_OUTPUT
+          echo 'EOF' >> $GITHUB_OUTPUT
       - name: Bundle mpv
-        run: TOOLS/osxbundle.py build/mpv
-
+        run: |
+          # workaround for osxbundle.py
+          install_name_tool -change @loader_path/libbrotlicommon.1.dylib /usr/local/opt/brotli/lib/libbrotlicommon.1.dylib /usr/local/opt/brotli/lib/libbrotlidec.1.dylib
+          install_name_tool -change @loader_path/libbrotlicommon.1.dylib /usr/local/opt/brotli/lib/libbrotlicommon.1.dylib /usr/local/opt/brotli/lib/libbrotlienc.1.dylib
+          ./TOOLS/osxbundle.py build/mpv
       - name: tar bundle
-        run: tar cvf mpv-${{ steps.versions.outputs.git_version }}.tar mpv.app
+        run: tar cvf mpv-${{ steps.versions.outputs.MPV_VERSION_SH }}.tar mpv.app
         working-directory: build
-
       - name: Upload artifact
         uses: actions/upload-artifact@v2
         with:
           name: build
-          path: |
-            build/mpv-${{ steps.versions.outputs.git_version }}.tar
-            COMMIT_SHA
-            VERSION
-            MPV_VERSION
+          path: build/mpv-${{ steps.versions.outputs.MPV_VERSION_SH }}.tar
+    outputs:
+      COMMIT_SHA: ${{ steps.versions.outputs.COMMIT_SHA }}
+      MPV_VERSION_SH: ${{ steps.versions.outputs.MPV_VERSION_SH }}
+      MPV_VERSION: ${{ steps.mpv_version.outputs.MPV_VERSION }}
 
   release:
     needs: build
@@ -86,29 +77,30 @@ jobs:
         uses: actions/download-artifact@v2
         with:
           name: build
-
-      - name: Get versions
-        id: versions
+      - name: Release body and date
+        env:
+          COMMIT_SHA: ${{ needs.build.outputs.COMMIT_SHA }}
+          MPV_VERSION: ${{ needs.build.outputs.MPV_VERSION }}
         run: |
-          echo Bump to mpv-player/mpv@$(cat COMMIT_SHA) > body.md
-          echo \`\`\` >> body.md
-          cat MPV_VERSION >> body.md
-          echo \`\`\` >> body.md
-          echo "::set-output name=git_version::$(cat VERSION)"
-          echo "::set-output name=date::$(date +%Y-%m-%d)"
-
+          echo "Bump to mpv-player/mpv@$COMMIT_SHA" > body.md
+          echo '```' >> body.md
+          echo "$MPV_VERSION" >> body.md
+          echo '```' >> body.md
+      - name: Get today date
+        id: date
+        run: echo "DATE=$(date +%Y-%m-%d)" >> $GITHUB_OUTPUT
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: mpv-${{ steps.versions.outputs.git_version }}
-          name: ${{ steps.versions.outputs.date }}
+          tag_name: mpv-${{ needs.build.outputs.MPV_VERSION_SH }}
+          name: ${{ steps.date.outputs.DATE }}
           body_path: body.md
-          files: build/mpv-${{ steps.versions.outputs.git_version }}.tar
+          files: build/mpv-${{ needs.build.outputs.MPV_VERSION_SH }}.tar
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   update-tap:
-    needs: release
+    needs: [build, release]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout NextFire/homebrew-tap
@@ -116,19 +108,18 @@ jobs:
         with:
           repository: "NextFire/homebrew-tap"
           token: ${{ secrets.TOKEN }}
-
       - name: Download artifact
         uses: actions/download-artifact@v2
         with:
           name: build
-
       - name: Update cask
+        env:
+          MPV_VERSION_SH: ${{ needs.build.outputs.MPV_VERSION_SH }}
         run: |
-          git_version=$(cat VERSION)
-          build_sha=$(shasum -a 256 build/mpv-$git_version.tar | cut -d ' ' -f 1)
-          sed -i "s/version .*/version \"$git_version\"/; s/sha256 .*/sha256 \"$build_sha\"/" Casks/mpv-git.rb
+          BUILD_SHA=$(shasum -a 256 build/mpv-$MPV_VERSION_SH.tar | cut -d ' ' -f 1)
+          sed -i "s/version .*/version \"$MPV_VERSION_SH\"/; s/sha256 .*/sha256 \"$BUILD_SHA\"/" Casks/mpv-git.rb
           git config user.name 'github-actions[bot]'
           git config user.email 'github-actions[bot]@users.noreply.github.com'
           git add Casks/mpv-git.rb
-          git commit -m "[CI] Update mpv to $git_version"
+          git commit -m "[CI] Update mpv to $MPV_VERSION_SH"
           git push
