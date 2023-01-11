@@ -1,6 +1,8 @@
 # mpv-macos-git-builds
 
-**The latest version is available [here](https://github.com/NextFire/mpv-macos-git-builds/releases/latest).**
+[![CI](https://github.com/NextFire/mpv-macos-git-builds/actions/workflows/ci.yml/badge.svg)](https://github.com/NextFire/mpv-macos-git-builds/actions/workflows/ci.yml)
+
+**The latest build is available [here](https://github.com/NextFire/mpv-macos-git-builds/releases/latest).**
 
 This repository provides unofficial git desktop builds of [mpv-player/mpv](https://github.com/mpv-player/mpv) for macOS.
 
@@ -11,7 +13,7 @@ Build dependencies:
 - `luajit` (stable) for Lua scripts
 - `mujs` (stable) for JS scripts
 
-## Homebrew tap
+## Homebrew
 
 You can `brew tap nextfire/tap` ([repo](https://github.com/NextFire/homebrew-tap)) then install the git build with `brew install --cask mpv-git`.
 
