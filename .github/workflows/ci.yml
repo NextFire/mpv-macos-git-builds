@@ -21,7 +21,7 @@ jobs:
         id: versions
         run: |
           echo "COMMIT_SHA=$(git log -n1 --format='%h')" >> $GITHUB_OUTPUT
-          echo "MPV_VERSION_SH=$(./version.sh)" >> $GITHUB_OUTPUT
+          echo "MPV_VERSION_SH=$(./version.py)" >> $GITHUB_OUTPUT
       - name: Get last build version
         id: last_build
         uses: oprypin/find-latest-tag@v1
